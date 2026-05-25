@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.github.ailton.userhub.domain.User;
 import com.github.ailton.userhub.dto.UserRequest;
 import com.github.ailton.userhub.dto.UserResponse;
+import com.github.ailton.userhub.dto.UserUpdateRequest;
 import com.github.ailton.userhub.exception.BusinessException;
 import com.github.ailton.userhub.exception.ResourceNotFoundException;
 import com.github.ailton.userhub.mapper.UserMapper;
@@ -65,8 +66,7 @@ class UserServiceTest {
                 "Ailton",
                 "ailton@email.com",
                 user.getCreatedAt(),
-                user.getUpdatedAt()
-        );
+                user.getUpdatedAt());
     }
 
     @Test
@@ -113,7 +113,7 @@ class UserServiceTest {
     void shouldThrowResourceNotFoundExceptionWhenUserNotFound() {
         when(userRepository.findById("uuid-inexistente")).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, 
+        assertThrows(ResourceNotFoundException.class,
                 () -> userService.findById("uuid-inexistente"));
     }
 
@@ -131,8 +131,65 @@ class UserServiceTest {
     void shouldThrowResourceNotFoundExceptionWhenDeletingNonExistentUser() {
         when(userRepository.existsById("uuid-inexistente")).thenReturn(false);
 
-        assertThrows(ResourceNotFoundException.class, 
+        assertThrows(ResourceNotFoundException.class,
                 () -> userService.delete("uuid-inexistente"));
         verify(userRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("Should update user successfully")
+    void shouldUpdateUserSuccessfully() {
+        UserUpdateRequest updateRequest = new UserUpdateRequest("Ailton Silva", null, null);
+
+        when(userRepository.findById("uuid-123")).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user); // ← adicione isso
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        UserResponse response = userService.update("uuid-123", updateRequest);
+
+        assertNotNull(response);
+        assertEquals("uuid-123", response.id());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    @DisplayName("Should throw ResourceNotFoundException when updating non-existent user")
+    void shouldThrowResourceNotFoundExceptionWhenUpdatingNonExistentUser() {
+        UserUpdateRequest updateRequest = new UserUpdateRequest("Ailton Silva", null, null);
+
+        when(userRepository.findById("uuid-inexistente")).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> userService.update("uuid-inexistente", updateRequest));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should throw BusinessException when updating with email already in use")
+    void shouldThrowBusinessExceptionWhenUpdatingWithEmailAlreadyInUse() {
+        UserUpdateRequest updateRequest = new UserUpdateRequest(null, "outro@email.com", null);
+
+        when(userRepository.findById("uuid-123")).thenReturn(Optional.of(user));
+        when(userRepository.existsByEmail("outro@email.com")).thenReturn(true);
+
+        assertThrows(BusinessException.class,
+                () -> userService.update("uuid-123", updateRequest));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should not check email when email is not changed")
+    void shouldNotCheckEmailWhenEmailIsNotChanged() {
+        UserUpdateRequest updateRequest = new UserUpdateRequest(null, "ailton@email.com", null);
+
+        when(userRepository.findById("uuid-123")).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user); // ← adicione isso
+        when(userMapper.toResponse(user)).thenReturn(userResponse);
+
+        UserResponse response = userService.update("uuid-123", updateRequest);
+
+        assertNotNull(response);
+        verify(userRepository, never()).existsByEmail(any());
+        verify(userRepository).save(user);
     }
 }

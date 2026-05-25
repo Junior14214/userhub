@@ -2,6 +2,7 @@ package com.github.ailton.userhub.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.ailton.userhub.controller.UserController;
+import com.github.ailton.userhub.exception.BusinessException;
 import com.github.ailton.userhub.exception.ResourceNotFoundException;
 import com.github.ailton.userhub.service.UserService;
 
@@ -25,6 +26,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 import com.github.ailton.userhub.dto.UserRequest;
 import com.github.ailton.userhub.dto.UserResponse;
+import com.github.ailton.userhub.dto.UserUpdateRequest;
 
 @WebMvcTest(UserController.class)
 class UserControllerTest {
@@ -50,8 +52,7 @@ class UserControllerTest {
                 "Ailton",
                 "ailton@email.com",
                 LocalDateTime.now(),
-                LocalDateTime.now()
-        );
+                LocalDateTime.now());
     }
 
     @Test
@@ -111,5 +112,54 @@ class UserControllerTest {
         mockMvc.perform(delete("/users/uuid-123")
                 .with(csrf()))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("Should update user and return 200")
+    @WithMockUser
+    void shouldUpdateUserAndReturn200() throws Exception {
+        UserUpdateRequest updateRequest = new UserUpdateRequest("Ailton Silva", null, null);
+
+        when(userService.update(any(String.class), any(UserUpdateRequest.class)))
+                .thenReturn(userResponse);
+
+        mockMvc.perform(patch("/users/uuid-123")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("uuid-123"));
+    }
+
+    @Test
+    @DisplayName("Should return 404 when updating non-existent user")
+    @WithMockUser
+    void shouldReturn404WhenUpdatingNonExistentUser() throws Exception {
+        UserUpdateRequest updateRequest = new UserUpdateRequest("Ailton Silva", null, null);
+
+        when(userService.update(any(String.class), any(UserUpdateRequest.class)))
+                .thenThrow(new ResourceNotFoundException("User not found"));
+
+        mockMvc.perform(patch("/users/uuid-inexistente")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Should return 409 when updating with email already in use")
+    @WithMockUser
+    void shouldReturn409WhenUpdatingWithEmailAlreadyInUse() throws Exception {
+        UserUpdateRequest updateRequest = new UserUpdateRequest(null, "outro@email.com", null);
+
+        when(userService.update(any(String.class), any(UserUpdateRequest.class)))
+                .thenThrow(new BusinessException("Email already in use"));
+
+        mockMvc.perform(patch("/users/uuid-123")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isConflict());
     }
 }
