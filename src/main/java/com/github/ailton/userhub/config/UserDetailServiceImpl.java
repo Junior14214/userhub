@@ -1,0 +1,30 @@
+package com.github.ailton.userhub.config;
+
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import com.github.ailton.userhub.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class UserDetailServiceImpl implements  UserDetailsService {
+    
+private final UserRepository userRepository;
+
+public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+    return userRepository.findByEmail(email)
+    .map(user -> User
+        .withUsername(user.getEmail())
+        .password(user.getPassword())
+        .roles("USER")
+        .build()
+    )
+    .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+}
+
+}
